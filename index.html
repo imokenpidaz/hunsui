@@ -45,16 +45,17 @@
 
     .char-grid {
       display: flex; flex-wrap: wrap; gap: 12px;
-      justify-content: center; max-height: 240px; overflow-y: auto;
+      justify-content: center; max-height: 280px; overflow-y: auto;
       margin-bottom: 15px; width: 100%; padding: 10px;
     }
     .char-card {
       background: #1e293b; border: 3px solid #334155;
-      border-radius: 14px; padding: 10px; font-size: 32px;
-      width: 70px; height: 70px; display: flex;
+      border-radius: 14px; padding: 6px; font-size: 28px;
+      width: 80px; height: 85px; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       position: relative; cursor: pointer;
     }
+    .char-card img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; }
     .char-card.selected { border-color: #38bdf8; box-shadow: 0 0 12px #38bdf8; background: #0f172a; }
     .char-card.selected::after {
       content: '✔'; position: absolute; top: -6px; right: -6px;
@@ -62,8 +63,10 @@
       width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
     }
     .char-card.locked { opacity: 0.25; filter: grayscale(1); cursor: not-allowed; }
-    
-    .gacha-result { font-size: 60px; margin: 15px 0; animation: pop 0.4s ease-out; }
+    .char-name { font-size: 10px; margin-top: 4px; color: #94a3b8; text-align: center; white-space: nowrap; }
+
+    .gacha-result { font-size: 60px; margin: 15px 0; animation: pop 0.4s ease-out; display: flex; justify-content: center; align-items: center; height: 70px; }
+    .gacha-result img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
     @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
 
     #gameUI { position: absolute; top: 0; left: 0; width: 100%; padding: 15px; pointer-events: none; z-index: 5; }
@@ -117,9 +120,11 @@
       text-shadow: 0 0 15px #ef4444; animation: blink 0.15s infinite alternate;
     }
     .fish-swarm {
-      position: absolute; width: 100%; top: 35%; font-size: 36px;
+      position: absolute; width: 100%; top: 35%;
+      display: flex; gap: 10px; justify-content: center; align-items: center;
       white-space: nowrap; animation: moveFish 1.2s linear forwards;
     }
+    .fish-swarm img { width: 45px; height: 45px; border-radius: 50%; }
     @keyframes moveFish {
       0% { transform: translateX(100%); }
       100% { transform: translateX(-100%); }
@@ -143,7 +148,12 @@
 <div id="pachinkoLCD" class="hidden">
   <div class="pachinko-frame">
     <div id="pachinkoStatus" class="status-text">変動中...</div>
-    <div id="fishSwarm" class="fish-swarm" style="display:none;">🐟🐬🐳🐟🐬🐳🐟🐬🐳</div>
+    <div id="fishSwarm" class="fish-swarm" style="display:none;">
+      <img src="./hikakin.png" onerror="this.style.display='none'">
+      <img src="./seikin.png" onerror="this.style.display='none'">
+      <img src="./takasu.png" onerror="this.style.display='none'">
+      <img src="./hori.png" onerror="this.style.display='none'">
+    </div>
     <div class="reel-container">
       <div id="reel1" class="reel">1</div>
       <div id="reel2" class="reel">2</div>
@@ -199,14 +209,25 @@
 
 <script>
   const ALL_CHARACTERS = [
-    { id: 'duck', emoji: '🦆', name: 'あひる', rarity: 'N' },
-    { id: 'frog', emoji: '🐸', name: 'かえる', rarity: 'N' },
-    { id: 'fish', emoji: '🐟', name: 'さかな', rarity: 'N' },
-    { id: 'dolphin', emoji: '🐬', name: 'いるか', rarity: 'R' },
-    { id: 'penguin', emoji: '🐧', name: 'ぺんぎん', rarity: 'R' },
-    { id: 'whale', emoji: '🐳', name: 'くじら', rarity: 'SSR' },
-    { id: 'dragon', emoji: '🐉', name: 'りゅう', rarity: 'SSR' }
+    { id: 'duck', emoji: '🦆', name: 'あひる', rarity: 'N', weight: 30 },
+    { id: 'frog', emoji: '🐸', name: 'かえる', rarity: 'N', weight: 30 },
+    { id: 'fish', emoji: '🐟', name: 'さかな', rarity: 'N', weight: 20 },
+    { id: 'dolphin', emoji: '🐬', name: 'いるか', rarity: 'R', weight: 10 },
+    { id: 'hikakin', image: './hikakin.png', name: 'ヒカキン', rarity: 'SSR', weight: 3 },
+    { id: 'seikin', image: './seikin.png', name: 'セイキン', rarity: 'SSR', weight: 3 },
+    { id: 'takasu', image: './takasu.png', name: '高須幹弥', rarity: 'SSR', weight: 2 },
+    { id: 'hori', image: './hori.png', name: '堀大輔', rarity: 'SSR', weight: 2 }
   ];
+
+  // 画像キャッシュの作成
+  const loadedImages = {};
+  ALL_CHARACTERS.forEach(c => {
+    if (c.image) {
+      const img = new Image();
+      img.src = c.image;
+      loadedImages[c.id] = img;
+    }
+  });
 
   let myCharacters = ['duck'];
   let selectedCharacters = ['duck'];
@@ -214,10 +235,20 @@
   let isPlaying = false;
   let isPachinkoActive = false;
 
-  // 保留管理
-  let holds = []; // 最大4個（'blue', 'green', 'red', 'gold'）
+  let holds = [];
 
-  const pachinkoSound = new Audio('./pachinko.mp3');
+  // 音声（patinko.mp3）
+  const pachinkoSound = new Audio('./patinko.mp3');
+  pachinkoSound.load();
+
+  function unlockAudio() {
+    pachinkoSound.play().then(() => {
+      pachinkoSound.pause();
+      pachinkoSound.currentTime = 0;
+    }).catch(e => {
+      console.log("Audio pending:", e);
+    });
+  }
 
   function showHome() {
     isPlaying = false;
@@ -227,6 +258,7 @@
   }
 
   function startGame() {
+    unlockAudio();
     document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
     isPlaying = true;
   }
@@ -244,7 +276,20 @@
       
       const div = document.createElement('div');
       div.className = `char-card ${isOwned ? '' : 'locked'} ${isSelected ? 'selected' : ''}`;
-      div.innerText = isOwned ? c.emoji : '❓';
+      
+      let iconContent = '❓';
+      if (isOwned) {
+        if (c.image) {
+          iconContent = `<img src="${c.image}" alt="${c.name}">`;
+        } else {
+          iconContent = `<div>${c.emoji}</div>`;
+        }
+      }
+      
+      div.innerHTML = `
+        ${iconContent}
+        <div class="char-name">${isOwned ? c.name : '???'}</div>
+      `;
       
       if (isOwned) {
         div.onclick = () => {
@@ -264,7 +309,7 @@
     document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
     document.getElementById('gachaScreen').classList.remove('hidden');
     document.getElementById('gachaScore').innerText = `所持スコア: ${totalScore.toLocaleString()} PTS`;
-    document.getElementById('gachaDisplay').innerText = '❓';
+    document.getElementById('gachaDisplay').innerHTML = '❓';
     document.getElementById('gachaText').innerText = '';
   }
 
@@ -276,35 +321,48 @@
     totalScore -= 1000;
     document.getElementById('gachaScore').innerText = `所持スコア: ${totalScore.toLocaleString()} PTS`;
 
-    const picked = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
+    const totalWeight = ALL_CHARACTERS.reduce((acc, c) => acc + c.weight, 0);
+    let random = Math.random() * totalWeight;
+    let picked = ALL_CHARACTERS[0];
+
+    for (const c of ALL_CHARACTERS) {
+      if (random < c.weight) {
+        picked = c;
+        break;
+      }
+      random -= c.weight;
+    }
+
     if (!myCharacters.includes(picked.id)) {
       myCharacters.push(picked.id);
       selectedCharacters.push(picked.id);
     }
 
-    document.getElementById('gachaDisplay').innerText = picked.emoji;
+    const display = document.getElementById('gachaDisplay');
+    if (picked.image) {
+      display.innerHTML = `<img src="${picked.image}" alt="${picked.name}">`;
+    } else {
+      display.innerText = picked.emoji;
+    }
+
     document.getElementById('gachaText').innerText = `[${picked.rarity}] ${picked.name} をゲット！`;
   }
 
-  // 保留ランプ描画更新
   function updateHoldUI() {
     const lamps = document.querySelectorAll('#holdLamps .hold-lamp');
     lamps.forEach((lamp, idx) => {
       lamp.className = 'hold-lamp';
       if (holds[idx]) {
-        lamp.classList.add(`hold-${holds[idx]}`);
+        lamp.classList.add(`hold-${holds[idx].color}`);
       }
     });
   }
 
-  // 保留を1個追加（1/319の大当り抽選もここで実施）
   function addHold() {
     if (holds.length >= 4) return;
     
-    // 大当り判定：1/319 (約0.00313)
     const isWin = Math.random() < (1 / 319);
     
-    // 保留の色を判定（金：激アツ、赤：熱、緑：中、青：ガセ）
     let color = 'blue';
     if (isWin) {
       color = Math.random() < 0.6 ? 'gold' : 'red';
@@ -317,13 +375,11 @@
     holds.push({ isWin, color });
     updateHoldUI();
 
-    // 演出中でなければ即消化開始
     if (!isPachinkoActive) {
       consumeHold();
     }
   }
 
-  // 保留の消化＆液晶演出
   function consumeHold() {
     if (holds.length === 0 || isPachinkoActive) return;
 
@@ -331,9 +387,8 @@
     const currentHold = holds.shift();
     updateHoldUI();
 
-    // リーチになるかどうか（ハズレでも一定確率でガセリーチ）
     const isReach = currentHold.isWin || Math.random() < 0.15;
-    const isFishSwarm = currentHold.isWin ? Math.random() < 0.7 : Math.random() < 0.08; // 魚群予告
+    const isFishSwarm = currentHold.isWin ? Math.random() < 0.7 : Math.random() < 0.08;
 
     const lcd = document.getElementById('pachinkoLCD');
     const reel1 = document.getElementById('reel1');
@@ -350,7 +405,6 @@
     status.className = 'status-text';
     status.innerText = currentHold.color === 'gold' ? '👑 金 保 留 激 熱 👑' : '変動中...';
 
-    // 1. シャッフル
     let shuffleTimer = setInterval(() => {
       reel1.innerText = Math.floor(Math.random() * 8) + 1;
       reel2.innerText = Math.floor(Math.random() * 8) + 1;
@@ -358,13 +412,11 @@
       reel1.classList.remove('seven'); reel2.classList.remove('seven'); reel3.classList.remove('seven');
     }, 40);
 
-    // 2. 左リール停止
     setTimeout(() => {
       reel1.innerText = '7';
       reel1.classList.add('seven');
     }, 800);
 
-    // 3. 右リール（リーチ判定）
     setTimeout(() => {
       if (isReach) {
         reel3.innerText = '7';
@@ -372,9 +424,8 @@
         status.className = 'reach-text';
         status.innerText = 'REACH';
 
-        // 魚群演出！
         if (isFishSwarm) {
-          fish.style.display = 'block';
+          fish.style.display = 'flex';
         }
       } else {
         reel3.innerText = '4';
@@ -382,12 +433,11 @@
         setTimeout(() => {
           lcd.classList.add('hidden');
           isPachinkoActive = false;
-          consumeHold(); // 次の保留へ
+          consumeHold();
         }, 500);
       }
     }, 1600);
 
-    // 4. リーチ時の場合の中リール決定
     if (isReach) {
       setTimeout(() => {
         clearInterval(shuffleTimer);
@@ -400,31 +450,30 @@
             clearInterval(slowTimer);
 
             if (currentHold.isWin) {
-              // 🎉🎉🎉 1/319 達成！！ 🎉🎉🎉
               reel2.innerText = '7';
               reel2.classList.add('seven');
               feverText.style.display = 'block';
               status.innerText = '超 確 変 大 当 り !!';
 
-              try { pachinkoSound.currentTime = 0; pachinkoSound.play().catch(()=>{}); } catch(e){}
+              pachinkoSound.pause();
+              pachinkoSound.currentTime = 0;
+              pachinkoSound.play().catch(e => console.log(e));
 
               setTimeout(() => {
                 lcd.classList.add('hidden');
                 isPachinkoActive = false;
 
-                // 爆発的大噴射＆ボーナススコア
                 spawnFountain(canvas.width / 2, canvas.height * 0.82, true, true);
-                for(let k = 0; k < 30; k++) {
+                for(let k = 0; k < 35; k++) {
                   const randomCharId = selectedCharacters[Math.floor(Math.random() * selectedCharacters.length)];
                   const charObj = ALL_CHARACTERS.find(c => c.id === randomCharId);
-                  if (charObj) charParticles.push(new CharParticle(canvas.width / 2, canvas.height * 0.82, charObj.emoji));
+                  if (charObj) charParticles.push(new CharParticle(canvas.width / 2, canvas.height * 0.82, charObj));
                 }
-                totalScore += 10000; // 超特大1万ポイント！
+                totalScore += 10000;
                 consumeHold();
               }, 3000);
 
             } else {
-              // ❌ ハズレ
               reel2.innerText = '6';
               status.innerText = 'ハズレ';
               setTimeout(() => {
@@ -489,16 +538,16 @@
   }
 
   class CharParticle {
-    constructor(x, y, emoji) {
+    constructor(x, y, charObj) {
       this.x = x; this.y = y;
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
       const speed = Math.random() * 14 + 6;
       this.vx = Math.cos(angle) * speed;
       this.vy = Math.sin(angle) * speed;
-      this.emoji = emoji;
+      this.charObj = charObj;
       this.life = 90;
       this.gravity = 0.25;
-      this.size = 28 + Math.random() * 10;
+      this.size = 36 + Math.random() * 10;
     }
     update() {
       this.vy += this.gravity;
@@ -506,10 +555,20 @@
       this.life -= 1;
     }
     draw() {
-      ctx.font = `${this.size}px sans-serif`;
-      ctx.textAlign = 'center';
       ctx.globalAlpha = Math.max(0, this.life / 90);
-      ctx.fillText(this.emoji, this.x, this.y);
+      if (this.charObj.image && loadedImages[this.charObj.id]) {
+        const img = loadedImages[this.charObj.id];
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+        ctx.restore();
+      } else {
+        ctx.font = `${this.size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(this.charObj.emoji, this.x, this.y);
+      }
       ctx.globalAlpha = 1.0;
     }
   }
@@ -523,7 +582,7 @@
     if (isPowerUp && Math.random() < 0.45 && selectedCharacters.length > 0) {
       const randomCharId = selectedCharacters[Math.floor(Math.random() * selectedCharacters.length)];
       const charObj = ALL_CHARACTERS.find(c => c.id === randomCharId);
-      if (charObj) charParticles.push(new CharParticle(x, y, charObj.emoji));
+      if (charObj) charParticles.push(new CharParticle(x, y, charObj));
     }
 
     if (isPlaying && !isMega) {
@@ -532,8 +591,6 @@
         waterLevel = 0;
         spawnFountain(canvas.width / 2, canvas.height * 0.82, false, true);
         totalScore += Math.floor(Math.random() * 200) + 100;
-        
-        // ゲージ満タンでチャッカー入賞（保留追加）
         addHold();
       }
     }
